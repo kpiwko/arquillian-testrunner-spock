@@ -61,8 +61,11 @@
  	Container extension which bundles all Spock-related dependencies required
  	while running Spock specifications using Arquillian.
  	
-examples/
+ examples/
 	Sample tests written using Spock BDD framework.
+
+ groovy-patch/
+    Patched Groovy to fix the problem GROOVY-6158
 
  Licensing
  =========

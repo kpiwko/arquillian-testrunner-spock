@@ -16,13 +16,12 @@
  */
 package org.jboss.arquillian.spock;
 
+import java.nio.channels.IllegalSelectorException;
 import java.util.Collection;
-import java.util.logging.Logger;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.jboss.arquillian.test.spi.TestRunnerAdaptor;
-import org.jboss.arquillian.test.spi.TestRunnerAdaptorBuilder;
-import org.spockframework.runtime.AbstractRunListener;
-import org.spockframework.runtime.SpockExecutionException;
 import org.spockframework.runtime.extension.AbstractAnnotationDrivenExtension;
 import org.spockframework.runtime.model.FeatureInfo;
 import org.spockframework.runtime.model.SpecInfo;
@@ -37,90 +36,47 @@ import org.spockframework.util.NotThreadSafe;
  * @version $Revision: $
  */
 @NotThreadSafe
-public class ArquillianSpockExtension extends AbstractAnnotationDrivenExtension<ArquillianSpecification>
-{
-   private TestRunnerAdaptor deployableTest;
+public class ArquillianSpockExtension extends AbstractAnnotationDrivenExtension<ArquillianSpecification> {
 
-   private SpecInfo lastCreatedSpec;
+    private final Set<SpecInfo> arqSpockSpecs = Collections.synchronizedSet(new HashSet<SpecInfo>());
 
-   private Logger log = Logger.getLogger(ArquillianSpockExtension.class.getName());
+    // private final Logger log = Logger.getLogger(ArquillianSpockExtension.class.getName());
 
-   @Override
-   public void visitSpecAnnotation(ArquillianSpecification annotation, SpecInfo spec)
-   {
-      initalizeTestAdaptor();
-   }
+    @Override
+    public void visitSpecAnnotation(ArquillianSpecification annotation, SpecInfo spec) {
+        arqSpockSpecs.add(spec);
+    }
 
-   @Override
-   public void visitSpec(SpecInfo spec)
-   {
-      final SpecInfo topSpec = spec.getTopSpec();
-      // set the last created Spec, so we can call AfterSuite only when this is done.
-      lastCreatedSpec = topSpec;
+    @Override
+    public void visitSpec(SpecInfo spec) {
 
-      final ArquillianInterceptor interceptor = new ArquillianInterceptor(deployableTest);
+        if (!arqSpockSpecs.contains(spec)) {
+            // ignore spec if it is not annotated to run with @ArquillianSpecification
+            return;
+        }
 
-      for (SpecInfo s : spec.getSpecsBottomToTop())
-      {
-         interceptLifecycleMethods(s, interceptor);
-         interceptAllFeatures(s.getAllFeatures(), interceptor);
-      }
+        if (!State.hasTestAdaptor()) {
+            throw new IllegalStateException(
+                    "Unable to run Arquillian Spock test without TestRunnerAdaptor instantiated. Likely you forgot to annotate the specification with @RunWith(ArquillianSputnik.class)");
+        }
 
-      topSpec.addListener(new AbstractRunListener()
-      {
-         @Override
-         public void afterSpec(SpecInfo spec)
-         {
-             if (spec == lastCreatedSpec)
-             {
-                 try
-                 {
-                     log.fine("afterSuite");
-                     deployableTest.afterSuite();
-                     deployableTest = null;
-                 }
-                 catch (Exception e)
-                 {
-                     throw new SpockExecutionException("Unable to add ArquillianSpecification listener", e);
-                 }
-             }
-         }
-      });
-   }
+        final ArquillianInterceptor interceptor = new ArquillianInterceptor(State.getTestAdaptor());
+        for (SpecInfo s : spec.getSpecsBottomToTop()) {
+            interceptLifecycleMethods(s, interceptor);
+            interceptAllFeatures(s.getAllFeatures(), interceptor);
+        }
+    }
 
-   private void interceptLifecycleMethods(final SpecInfo specInfo, final ArquillianInterceptor interceptor)
-   {
-      specInfo.getSetupSpecMethod().addInterceptor(interceptor);
-      specInfo.getSetupMethod().addInterceptor(interceptor);
-      specInfo.getCleanupMethod().addInterceptor(interceptor);
-      specInfo.getCleanupSpecMethod().addInterceptor(interceptor);
-   }
+    private void interceptLifecycleMethods(final SpecInfo specInfo, final ArquillianInterceptor interceptor) {
+        specInfo.getSetupSpecMethod().addInterceptor(interceptor);
+        specInfo.getSetupMethod().addInterceptor(interceptor);
+        specInfo.getCleanupMethod().addInterceptor(interceptor);
+        specInfo.getCleanupSpecMethod().addInterceptor(interceptor);
+    }
 
-   private void interceptAllFeatures(final Collection<FeatureInfo> features, final ArquillianInterceptor interceptor)
-   {
-      for (FeatureInfo feature : features)
-      {
-         feature.getFeatureMethod().addInterceptor(interceptor);
-      }
-   }
-
-   private void initalizeTestAdaptor()
-   {
-      if (deployableTest == null)
-      {
-         final TestRunnerAdaptor adaptor = TestRunnerAdaptorBuilder.build();
-         try
-         {
-            log.fine("beforeSuite");
-            // don't set it if beforeSuite fails
-            adaptor.beforeSuite();
-            deployableTest = adaptor;
-         }
-         catch (Exception e)
-         {
-            throw new SpockExecutionException("Unable to hook Arquillian Spock test adaptor", e);
-         }
-      }
-   }
-
+    private void interceptAllFeatures(final Collection<FeatureInfo> features, final ArquillianInterceptor interceptor) {
+        for (FeatureInfo feature : features) {
+            feature.getFeatureMethod().addInterceptor(interceptor);
+        }
+    }
 }

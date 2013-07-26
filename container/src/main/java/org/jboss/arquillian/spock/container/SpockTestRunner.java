@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.jboss.arquillian.container.test.spi.TestRunner;
+import org.jboss.arquillian.spock.ArquillianSputnik;
 import org.jboss.arquillian.test.spi.TestResult;
 import org.jboss.arquillian.test.spi.TestResult.Status;
 import org.junit.runner.Result;
@@ -49,14 +50,15 @@ public class SpockTestRunner implements TestRunner
    /* (non-Javadoc)
     * @see org.jboss.arquillian.spi.TestRunner#execute(java.lang.Class, java.lang.String)
     */
-   public TestResult execute(final Class<?> testClass, final String methodName)
+   @Override
+public TestResult execute(final Class<?> testClass, final String methodName)
    {
 
       final Result testResult = new Result();
 
       try
       {
-         final Sputnik spockRunner = new Sputnik(testClass);
+         final Sputnik spockRunner = new ArquillianSputnik(testClass);
          spockRunner.filter(new SpockSpecificationFilter(spockRunner, methodName));
          runTest(spockRunner, testResult);
       }
